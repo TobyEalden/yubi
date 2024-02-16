@@ -61,16 +61,19 @@ int sendHTTPPOST(SSL *ssl, const char *hostname, const char *port, const char *p
     } else {
         printf("Connected with %s encryption\n", SSL_get_cipher(ssl));
 
-        // You can now use SSL_read() and SSL_write() to communicate securely
-        // For example: SSL_write(ssl, "message", strlen("message"));
-
         // Send the HTTP POST request
         char request[1024];
-//        sprintf(request, "POST %s HTTP/1.1\r\nHost: %s\r\nContent-Type: application/x-www-form-urlencoded\r\nContent-Length: %lu\r\n\r\n%s", path, hostname, strlen(data), data);
-        sprintf(request, "POST %s HTTP/1.1\r\nHost: %s\r\nContent-Type: application/json\r\nContent-Length: %lu\r\n\r\n%s", path, hostname, strlen(data), data);
+        sprintf(request,
+                "POST %s HTTP/1.1\r\nHost: %s\r\nContent-Type: application/json\r\nContent-Length: %lu\r\n\r\n%s", path,
+                hostname, strlen(data), data);
 
         SSL_write(ssl, request, strlen(request));
 
+        // Read the HTTP response
+        char response[4096];
+        int bytes = SSL_read(ssl, response, sizeof(response));
+        response[bytes] = 0;
+        printf("Server response: %s\n", response);
 
         // Close the SSL connection
         SSL_shutdown(ssl);
@@ -83,14 +86,21 @@ int sendHTTPPOST(SSL *ssl, const char *hostname, const char *port, const char *p
 }
 
 int main() {
-    const char* engine_id = "pkcs11";
-    const char* module_path = "/usr/local/lib/libykcs11.dylib"; // Path to the PKCS#11 module
-    const char* pin = "123456"; // Your YubiKey's PIN
-    const char* cert_id = "01"; // ID of the certificate object on the YubiKey
+    const char *engine_id = "pkcs11";
 
-    // Load the pkcs11 engine
+    // **LOOKOUT** - hard-coded path to the PKCS#11 module.
+    const char *module_path = "/usr/local/lib/libykcs11.dylib";
+
+    // YubiKey's PIN - this is the default.
+    const char *pin = "123456";
+
+    // ID of the 9a slot on the YubiKey
+    const char *cert_id = "01";
+
+    // Load the pkcs11 engine. This is marked as deprecated in 3.x, but the
+    // `libp11` library we're using does not support the new `provider` API.
     ENGINE_load_dynamic();
-    ENGINE* pkcs11_engine = ENGINE_by_id(engine_id);
+    ENGINE *pkcs11_engine = ENGINE_by_id(engine_id);
     if (!pkcs11_engine) {
         std::cerr << "Could not load engine" << std::endl;
         exit(1);
@@ -106,9 +116,9 @@ int main() {
     }
 
     // Create a new SSL context
-    auto* ctx = create_context();
+    auto *ctx = create_context();
 
-    // Load the client certificate from the YubiKey
+    // Load the client certificate from the local disk.
     if (!SSL_CTX_use_certificate_file(ctx, "./client-cert.pem", SSL_FILETYPE_PEM)) {
         std::cerr << "Failed to load certificate" << std::endl;
         ERR_print_errors_fp(stderr);
@@ -127,10 +137,11 @@ int main() {
         exit(1);
     }
 
+    // Set the verification mode to require a certificate from the server.
     SSL_CTX_set_verify(ctx, SSL_VERIFY_PEER, nullptr);
 
-    // Associate the private key from the YubiKey with the SSL context
-    EVP_PKEY* pkey = ENGINE_load_private_key(pkcs11_engine, cert_id, NULL, NULL);
+    // Load the private key from the YubiKey.
+    EVP_PKEY *pkey = ENGINE_load_private_key(pkcs11_engine, cert_id, NULL, NULL);
     if (!pkey) {
         std::cerr << "Failed to load private key" << std::endl;
         SSL_CTX_free(ctx);
@@ -139,6 +150,7 @@ int main() {
         exit(1);
     }
 
+    // Associate it with the SSL context.
     if (!SSL_CTX_use_PrivateKey(ctx, pkey)) {
         std::cerr << "Failed to use private key" << std::endl;
         EVP_PKEY_free(pkey);
@@ -148,7 +160,7 @@ int main() {
         exit(1);
     }
 
-    // Verify private key
+    // Verify private key matches the client certificate.
     if (!SSL_CTX_check_private_key(ctx)) {
         std::cerr << "Private key does not match the public certificate" << std::endl;
         EVP_PKEY_free(pkey);
@@ -161,9 +173,10 @@ int main() {
     // Proceed with creating and setting up the SSL connection...
     auto ssl = SSL_new(ctx);
 
-    // Set the 'operand' field in the POST body data and encode for a POST request
+    // Set the 'operand' field in the POST body data for the /test endpoint.
     auto body = "{\"operand\": 2}";
 
+    // Send the HTTP POST request to the server (see `yubi-server`).
     sendHTTPPOST(ssl, "127.0.0.1", "4443", "/test", body);
 
     // Clean up

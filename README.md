@@ -15,7 +15,7 @@ To set up the proof of concept, the following steps were taken:
 4. Set up a simple nodejs server that automatically creates a self-signed CA and uses it to issue a server certificate. This server then creates an HTTPS listener and also exposes two endpoints: one to request a certificate and one to test the mutually authenticated flow.
 3. Send the CSR to the server `/csr` enddpoint and receive the signed certificate using the `send-csr.js` script. This was done via a nodejs script for simplicity as this request is not part of the mutually authenticated flow. The response from the server is a certificate that is written to a local file called `client-cert.pem`.
 5. The C++ client `yubi-client` is then used to establish a mutually authenticated connection to the server and send a JSON request to the `/test` endpoint. The client uses the `client-cert.pem` file as the client certificate and the server's CA file `ca.pem` to establish the connection.
-6. The server receives the request, verifies the client certificate and then responds with a JSON response. n.b. the `yubi-client` does not currently implement the response handling.
+6. The server receives the request, verifies the client certificate and then responds with a JSON response, which is then printed to the console by the client.
 
 # yubico-piv-tool commands
 
