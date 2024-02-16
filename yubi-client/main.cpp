@@ -83,13 +83,8 @@ int sendHTTPPOST(SSL *ssl, const char *hostname, const char *port, const char *p
 }
 
 int main() {
-    // Initialize OpenSSL
-//    SSL_library_init();
-//    OpenSSL_add_all_algorithms();
-//    SSL_load_error_strings();
-
     const char* engine_id = "pkcs11";
-    const char* module_path = "/usr/local/lib/libykcs11.dylib"; // Path to the OpenSC PKCS#11 module
+    const char* module_path = "/usr/local/lib/libykcs11.dylib"; // Path to the PKCS#11 module
     const char* pin = "123456"; // Your YubiKey's PIN
     const char* cert_id = "01"; // ID of the certificate object on the YubiKey
 
@@ -114,7 +109,7 @@ int main() {
     auto* ctx = create_context();
 
     // Load the client certificate from the YubiKey
-    if (!SSL_CTX_use_certificate_file(ctx, "/Users/tobyealden/code/yubi-01/client-cert.pem", SSL_FILETYPE_PEM)) {
+    if (!SSL_CTX_use_certificate_file(ctx, "./client-cert.pem", SSL_FILETYPE_PEM)) {
         std::cerr << "Failed to load certificate" << std::endl;
         ERR_print_errors_fp(stderr);
         SSL_CTX_free(ctx);
@@ -122,6 +117,17 @@ int main() {
         ENGINE_free(pkcs11_engine);
         exit(1);
     }
+
+    // Insist that the server we're connecting to has a certificate issued by `ca.pem`.
+    if (!SSL_CTX_load_verify_locations(ctx, "./ca.pem", NULL)) {
+        std::cerr << "Failed to load CA file" << std::endl;
+        SSL_CTX_free(ctx);
+        ENGINE_finish(pkcs11_engine);
+        ENGINE_free(pkcs11_engine);
+        exit(1);
+    }
+
+    SSL_CTX_set_verify(ctx, SSL_VERIFY_PEER, nullptr);
 
     // Associate the private key from the YubiKey with the SSL context
     EVP_PKEY* pkey = ENGINE_load_private_key(pkcs11_engine, cert_id, NULL, NULL);
