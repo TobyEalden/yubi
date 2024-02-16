@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.27)
+cmake_minimum_required(VERSION 3.22)
 
 project(yubi_client)
 
@@ -9,6 +9,14 @@ add_executable(yubi_client
 
 target_link_libraries(yubi_client
         OpenSSL::SSL
-        OpenSSL::Crypto)
+        OpenSSL::Crypto
+)
+
+if (_UNIX AND NOT APPLE)
+    target_link_libraries(yubi_client
+            atomic
+    )
+endif ()
+
 
 target_include_directories(yubi_client PRIVATE ${OPENSSL_INCLUDE_DIR})

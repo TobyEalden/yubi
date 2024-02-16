@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.27)
+cmake_minimum_required(VERSION 3.22)
 
 if (NOT OPENSSL_ROOT_DIR)
     set(OPENSSL_ROOT_DIR "${TDXVOLT_ROOT}/openssl-release" CACHE PATH "OpenSSL root")
