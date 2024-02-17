@@ -12,7 +12,7 @@ target_link_libraries(yubi_client
         OpenSSL::Crypto
 )
 
-if (_UNIX AND NOT APPLE)
+if (UNIX AND NOT APPLE)
     target_link_libraries(yubi_client
             atomic
     )
