@@ -89,7 +89,15 @@ int main() {
     const char *engine_id = "pkcs11";
 
     // **LOOKOUT** - hard-coded path to the PKCS#11 module.
-    const char *module_path = "/usr/local/lib/libykcs11.dylib";
+#ifdef __APPLE__
+//    const char *module_path = "/usr/local/lib/libykcs11.dylib";
+    const char *module_path = "/opt/homebrew/Cellar/opensc/0.24.0/lib/opensc-pkcs11.so";
+#elifdef __linux__
+//    const char *module_path = "/usr/local/lib/libykcs11.so";
+    const char *module_path = "/usr/lib/arm-linux-gnueabihf/opensc-pkcs11.so";
+#elifdef _WIN32
+    #error "Unsupported platform"
+#endif
 
     // YubiKey's PIN - this is the default.
     const char *pin = "123456";
