@@ -108,7 +108,7 @@ It then creates an SSL connection to the server at https://127.0.0.1:4443 using 
 
 It mandates that the server is backed by a certificate issued by `ca.pem`.
 
-You may need to set `OPENSSL_CONF` to point to the correct openssl configuration file, e.g. `/home/pi/code/yubi/openssl-release`.
+You may need to set the environment variable `OPENSSL_CONF` to point to the correct openssl configuration file, e.g. `/home/pi/code/yubi/openssl-release`.
 
 # build notes
 
@@ -118,13 +118,14 @@ Various libraries were built from source for the `yubi-client` application. The 
 
 ## openssl
 
-The OpenSSL library was built from source, primarily because I was using 1.1.1 locally and want to try 3.x. Chances are that it wouldn't be necessary to build it from source in most cases as version 3.x tends to be the default on most systems these days.
+The OpenSSL library was built from source, primarily because I was using 1.1.1 locally whereas OpenSC uses 3.x. Chances are that it wouldn't be necessary to build it from source in most cases as version 3.x tends to be the default on most systems these days.
 
 Note the use of hard-coded paths below, you will need to adjust these to match your system.
 
 ```shell
 git clone https://github.com/openssl/openssl
 cd openssl
+git checkout openssl-3.2.1
 ./Configure linux-armv4 no-shared --prefix=~/code/yubi/openssl-release --openssldir=~/code/yubi/openssl-release
 make
 make install_sw
@@ -132,7 +133,7 @@ make install_sw
 
 ## libp11
 
-The libp11 library provides a pkcs11 engine plugin for the OpenSSL library allows accessing PKCS#11 modules in a semi-transparent way.
+The libp11 library provides a pkcs11 engine plugin for the OpenSSL library and allows accessing PKCS#11 modules in a semi-transparent way.
 
 Note the use of hard-coded paths below, you will need to adjust these to match your system.
 
