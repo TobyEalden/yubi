@@ -10,54 +10,45 @@ As a consequence, the client request is sent via a tool built with a C++ applica
 
 To set up the proof of concept, the following steps were taken:
 
-1. Generate a key pair on the YubiKey using the `yubico-piv-tool` command line tool (see below). The public key was then exported to a file called `public.pem`.
-2. Generate a CSR using the `yubico-piv-tool` command line tool (see below). The CSR is written to a file called `csr.pem`.
-4. Set up a simple nodejs server that automatically creates a self-signed CA and uses it to issue a server certificate. This server then creates an HTTPS listener and also exposes two endpoints: one to request a certificate and one to test the mutually authenticated flow.
-3. Send the CSR to the server `/csr` enddpoint and receive the signed certificate using the `send-csr.js` script. This was done via a nodejs script for simplicity as this request is not part of the mutually authenticated flow. The response from the server is a certificate that is written to a local file called `client-cert.pem`.
-5. The C++ client `yubi-client` is then used to establish a mutually authenticated connection to the server and send a JSON request to the `/test` endpoint. The client uses the `client-cert.pem` file as the client certificate and the server's CA file `ca.pem` to establish the connection.
-6. The server receives the request, verifies the client certificate and then responds with a JSON response, which is then printed to the console by the client.
+1. Generate a key pair on the YubiKey using the `ykman` command line tool (see below). The public key is exported to a file called `public.pem`.
+2. Generate a CSR using the `ykman` command line tool (see below). The CSR is written to a file called `csr.pem`.
+3. Set up a simple nodejs server that automatically creates a self-signed CA and uses it to issue a server certificate. This server then creates an HTTPS listener and also exposes two endpoints: one to request a certificate and one to test the mutually authenticated flow.
+4. Send the CSR to the server `/csr` endpoint and receive the signed certificate using the `send-csr.js` script. This was done via a nodejs script for simplicity as this request is not part of the mutually authenticated flow. The response from the server is a certificate that is written to a local file called `client-cert.pem`.
+5. Import the newly acquired client certificate into the Yubikey. This is necessary because the way PIV works is that you can only see certificates in a slot. The presence of a certificate assumes that the corresponding private key is also present.
+6. Copy the `ca.pem` and `client-cert.pem` files to the `yubi-client` directory. The `ca.pem` file is the server's CA file and the `client-cert.pem` file is the client certificate.
+7. The C++ client `yubi-client` is then used to establish a mutually authenticated connection to the server and send a JSON request to the `/test` endpoint. The client uses the `client-cert.pem` file as the client certificate and the server's CA file `ca.pem` to establish the connection.
+8. The server receives the request, verifies the client certificate and then responds with a JSON response, which is then printed to the console by the client.
 
-# yubico-piv-tool commands
+# ykman commands
 
-Some useful commands for the `yubico-piv-tool` command line tool.
+Some useful commands for the `ykman` command line tool.
 
 The default PIN is 123456.
 
-I had problems using the `yubico-piv-tool` on macOS after changing the default PIN.
+I had problems using the Yubikey on macOS after changing the default PIN.
 
 ## generate key
 
-```
-yubico-piv-tool -s 9a -a generate -o public.pem
-``` 
-
-Alternatively if you want to import an existing key:
-
-```
-yubico-piv-tool -s 9a -a import-key -i key.pem
-```
-
-## export public key
-
-If you don't have the public key locally, you can export it from the YubiKey indirectly by first reading the certificate. This is usually not necessary if you have the public key already as a result of the key generation.
-
-```
-yubico-piv-tool -s 9a -a read-certificate -o cert.pem
-```
-
-and then using openssl to extract the public key from the certificate:
-
-```
-openssl x509 -in cert.pem -pubkey -noout > public.pem
+```shell
+ykman piv keys generate --algorithm RSA2048 9a public.pem
 ```
 
 ## generate CSR
 
-This requires the public key to be available in a file called `public.pem`. You may also want to change the subject information in the `-S` option.
+This requires the public key to be available in a file called `public.pem`. You may also want to change the subject information in the `--subject` option.
 
+```shell
+ykman piv certificates request 9a public.pem csr.pem --subject "CN=Example,DC=example.com"
 ```
-yubico-piv-tool -a verify-pin -a request-certificate -s 9a -S '/CN=digi_sign/OU=test/O=example.com/' -i public.pem -o csr.pem
+
+## import certificate
+
+This requires the certificate to be available in a file called `client-cert.pem`, so you will need to have received the certificate from the server first by running the `node ./send-csr.js` script (see below).
+
+```shell
+ykman piv certificates import 9a client-cert.pem
 ```
+
 
 # yubi-server
 
@@ -97,7 +88,7 @@ The client should send a JSON POST request of the form `{"operand": 42}`. The se
 
 The `send-csr.js` is a simple nodejs client that can be used to send a CSR to the server and receive the signed certificate.
 
-It requires a file named `csr.pem` (created using the `yubico-piv-tool` as described above), as well as the server's CA file `ca.pem`.
+It requires a file named `csr.pem` (created using the `ykman` as described above), as well as the server's CA file `ca.pem`.
 
 It simply sends the csr to the `/csr` endpoint and then saves the received certificate to a file named `client-cert.pem`.
 
@@ -159,27 +150,37 @@ make
 make install
 ```
 
-## yubico-piv-tool
+## ykman CLI
 
-The Yubico PIV tool is used for interacting with the Personal Identity Verification (PIV) application on a YubiKey, and it also builds the `libykcs11` library that acts as a PKCS#11 module for the YubiKey.
+The `ykman` tool is used for interacting with the Personal Identity Verification (PIV) application on a YubiKey.
 
-Note the use of hard-coded paths below, you will need to adjust these to match your system.
+The following commands were used to install the `ykman` tool macOS.
 
 ```shell
-wget https://developers.yubico.com/yubico-piv-tool/Releases/yubico-piv-tool-2.5.1.tar.gz
-tar -xvf yubico-piv-tool-2.5.1.tar.gz
-cd yubico-piv-tool-2.5.1
-sudo apt install pkg-config check libpcsclite-dev gengetopt help2man
-mkdir build
-cd build
-export PKG_CONFIG_PATH=/Users/tobyealden/code/tdxvolt/openssl-release/lib/pkgconfig
-cmake .. -DCMAKE_EXE_LINKER_FLAGS="-latomic" -DCMAKE_SHARED_LINKER_FLAGS="-latomic"
-cmake --build .
-sudo cmake --install .
-sudo ldconfig
+brew install ykman
+``` 
+
+The equivalent command for Debian is:
+
+```shell
+sudo apt-get install yubikey-manager
 ```
 
-You may also need to modify various CMakeLists.txt in `yubico-piv-tool` to add `atomic` to the `target_link_libraries` statement.
+## opensc
+
+OpenSC provides a set of libraries and utilities to work with smart cards.
+
+The following commands were used to install the `opensc` tool on macOS.
+
+```shell
+brew install opensc
+```
+
+The equivalent command for Debian is:
+
+```shell
+sudo apt-get install opensc
+```
 
 You then need to modify the `openssl.cnf` file to configure the pcks11 engine, see https://github.com/OpenSC/libp11?tab=readme-ov-file#using-the-engine-from-the-command-line.
 
@@ -199,6 +200,6 @@ pkcs11 = pkcs11_section
 [pkcs11_section]
 engine_id = pkcs11
 dynamic_path = /Users/tobyealden/code/tdxvolt-openssl-3/openssl-release/lib/engines-3/libpkcs11.dylib
-MODULE_PATH = /usr/local/lib/libykcs11.dylib
+MODULE_PATH = /opt/homebrew/Cellar/opensc/0.24.0/lib/opensc-pkcs11.so
 init = 0
 ```

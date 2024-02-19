@@ -102,8 +102,8 @@ int main() {
     // YubiKey's PIN - this is the default.
     const char *pin = "123456";
 
-    // ID of the 9a slot on the YubiKey
-    const char *cert_id = "01";
+    // ID of the 9a slot on the YubiKey, use `pkcs11-tool -v -O` to find the ID.
+    const char *keyId = "01";
 
     // Load the pkcs11 engine. This is marked as deprecated in 3.x, but the
     // `libp11` library we're using does not support the new `provider` API.
@@ -149,7 +149,7 @@ int main() {
     SSL_CTX_set_verify(ctx, SSL_VERIFY_PEER, nullptr);
 
     // Load the private key from the YubiKey.
-    EVP_PKEY *pkey = ENGINE_load_private_key(pkcs11_engine, cert_id, NULL, NULL);
+    EVP_PKEY *pkey = ENGINE_load_private_key(pkcs11_engine, keyId, NULL, NULL);
     if (!pkey) {
         std::cerr << "Failed to load private key" << std::endl;
         SSL_CTX_free(ctx);
